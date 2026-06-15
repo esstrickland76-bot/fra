@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PAVE-based flight risk assessment with flight planning">
+<meta name="theme-color" content="#0969da">
+<link rel="manifest" href="./manifest.json">
+<title>Flight Risk Assessment Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f5f5;
+    --bg3: #eeeeee;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.12);
+    --text: #1a1a1a;
+    --text2: #555555;
+    --text3: #888888;
+    --green: #2d7c3c;
+    --green-bg: rgba(45,124,60,0.08);
+    --yellow: #a67c00;
+    --yellow-bg: rgba(166,124,0,0.08);
+    --red: #c82828;
+    --red-bg: rgba(200,40,40,0.08);
+    --blue: #0969da;
+    --blue-bg: rgba(9,105,218,0.08);
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 8px;
+  }
+  html { font-family: var(--sans); background: var(--bg); color: var(--text); }
+  body { max-width: 800px; margin: 0 auto; padding: 0; }
+  
+  .disclaimer { background:#fff3cd; border-bottom:2px solid #ffc107; padding:12px 16px; position:sticky; top:0; z-index:100; }
+  .disclaimer-text { max-width:760px; margin:0 auto; font-size:0.8rem; line-height:1.5; }
+  
+  .container { max-width:760px; margin:0 auto; padding:2rem 1.25rem 4rem; }
+  
+  .header { margin-bottom:2rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+  .header h1 { font-size:1.5rem; font-weight:600; }
+  .header h1 span { color:var(--blue); }
+  .header p { font-size:0.75rem; color:var(--text3); margin-top:4px; font-family:var(--mono); }
+  
+  .ft-row { display:flex; gap:8px; margin-bottom:1.5rem; }
+  .ft-btn { flex:1; padding:10px; border:1px solid var(--border2); border-radius:var(--radius); background:var(--bg2); color:var(--text2); font-size:0.85rem; cursor:pointer; }
+  .ft-btn.active { background:var(--blue-bg); border-color:var(--blue); color:var(--blue); }
+  .ft-label { font-size:0.75rem; color:var(--text3); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em; }
+  
+  .input-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:1rem; }
+  .input-group { margin-bottom:1rem; }
+  .input-group label { font-size:0.75rem; color:var(--text3); text-transform:uppercase; display:block; margin-bottom:4px; font-family:var(--mono); }
+  .input-group input, .input-group select, .input-group textarea { width:100%; padding:8px 12px; border:1px solid var(--border2); border-radius:var(--radius); background:var(--bg2); color:var(--text); font-family:var(--mono); font-size:0.9rem; }
+  .input-group textarea { height:60px; resize:vertical; }
+  
+  button { width:100%; padding:10px; border:1px solid var(--border2); border-radius:var(--radius); background:var(--blue-bg); color:var(--blue); font-family:var(--mono); font-size:0.85rem; font-weight:500; cursor:pointer; margin-bottom:1.5rem; }
+  button:hover { background:var(--blue); color:white; }
+  
+  .score-panel { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:1.5rem; }
+  .score-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
+  .score-card .label { font-size:0.7rem; color:var(--text3); text-transform:uppercase; }
+  .score-card .value { font-size:2rem; font-weight:600; margin-top:8px; font-family:var(--mono); }
+  
+  #weather-section { display:none; margin-bottom:1.5rem; }
+  .leg-box { margin:10px 0; padding:8px; background:var(--bg3); border-radius:var(--radius); border-left:4px solid #0969da; }
+  .leg-box.risk { border-left-color:#c82828; }
+  .leg-box strong { display:block; margin-bottom:4px; }
+  .leg-meta { font-size:0.75rem; color:var(--text3); margin:4px 0; }
+  .leg-metar { font-size:0.7rem; color:var(--text2); margin-top:4px; font-family:var(--mono); }
+  .leg-risk { font-size:0.75rem; color:#c82828; font-weight:bold; margin:4px 0; }
+  .data-type { font-size:0.7rem; background:#fff; padding:2px 6px; border-radius:3px; display:inline-block; margin-top:4px; }
+  .data-type.metar { color:#0969da; border:1px solid #0969da; }
+  .data-type.taf { color:#a67c00; border:1px solid #a67c00; }
+  .data-type.error { color:#c82828; border:1px solid #c82828; }
+  
+  .risk-banner { padding:14px; margin-bottom:1.5rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--bg2); }
+  .risk-banner.green { background:var(--green-bg); border-color:var(--green); }
+  .risk-banner.yellow { background:var(--yellow-bg); border-color:var(--yellow); }
+  .risk-banner.red { background:var(--red-bg); border-color:var(--red); }
+  .risk-level { font-weight:600; font-size:0.95rem; }
+  .risk-level.green { color:var(--green); }
+  .risk-level.yellow { color:var(--yellow); }
+  .risk-level.red { color:var(--red); }
+  
+  .section { border:1px solid var(--border); border-radius:var(--radius); margin-bottom:10px; background:var(--bg2); }
+  .sec-header { padding:12px 16px; cursor:pointer; display:flex; justify-content:space-between; user-select:none; }
+  .sec-header:hover { background:var(--bg3); }
+  .sec-title { font-weight:500; }
+  .sec-pill { font-size:0.7rem; padding:3px 8px; border-radius:4px; background:var(--bg3); color:var(--text3); }
+  .sec-content { padding:0 16px 16px; display:none; }
+  .sec-content.open { display:block; }
+  
+  .item { padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .item:last-child { border-bottom:none; }
+  .item label { font-size:0.9rem; flex:1; }
+  .item input[type="checkbox"] { width:18px; height:18px; cursor:pointer; }
+  .item select { width:auto; padding:4px; font-size:0.85rem; }
+</style>
+</head>
+<body>
+
+<div class="disclaimer">
+  <div class="disclaimer-text">
+    <strong>⚠️ DISCLAIMER:</strong> For flight planning education only. NOT a substitute for official METARs, TAFs (call 1-800-WX-BRIEF), pilot judgment, or pre-flight briefing. Always use actual weather data.
+  </div>
+</div>
+
+<div class="container">
+
+<div class="header">
+  <h1>Flight <span>Risk</span> Assessment</h1>
+  <p>PAVE Framework · V3 Multi-Leg with Smart METAR/TAF</p>
+</div>
+
+<div class="ft-label">Flight Type</div>
+<div class="ft-row">
+  <button class="ft-btn active" onclick="setFlightType('vfr')">VFR</button>
+  <button class="ft-btn" onclick="setFlightType('ifr')">IFR</button>
+</div>
+
+<div class="ft-label">Flight Details</div>
+<div class="input-grid">
+  <div class="input-group">
+    <label>Departure Date</label>
+    <input type="date" id="dep-date">
+  </div>
+  <div class="input-group">
+    <label>Departure Time</label>
+    <input type="time" id="dep-time">
+  </div>
+</div>
+<div class="input-group">
+  <label>Aircraft</label>
+  <select id="aircraft">
+    <option value="c172m">Cessna 172M (115 kt cruise)</option>
+    <option value="c182q">Cessna 182Q (145 kt cruise)</option>
+  </select>
+</div>
+
+<div class="ft-label">Flight Plan (airports)</div>
+<div class="input-group">
+  <textarea id="flight-plan" placeholder="KJFK KORD KDFW KLAX"></textarea>
+</div>
+<button onclick="fetchWeather()">⇆ Fetch Weather</button>
+
+<div id="weather-section">
+  <div id="weather-content"></div>
+</div>
+
+<div class="score-panel">
+  <div class="score-card">
+    <div class="label">Total Score</div>
+    <div class="value" id="total-score">0</div>
+  </div>
+  <div class="score-card">
+    <div class="label">Risk Level</div>
+    <div class="value" id="risk-level" style="font-size:1rem;">LOW</div>
+  </div>
+  <div class="score-card">
+    <div class="label">Status</div>
+    <div class="value" id="status" style="font-size:0.9rem;">GO</div>
+  </div>
+</div>
+
+<div class="risk-banner" id="risk-banner"></div>
+
+<div id="sections"></div>
+
+<button onclick="resetAll()" style="background:#f5f5f5; color:#666; margin-top:2rem;">Reset</button>
+
+</div>
+
+<script>
+var flightType = 'vfr';
+var state = {};
+
+var aircraft = {
+  c172m: {name: 'Cessna 172M', speed: 115},
+  c182q: {name: 'Cessna 182Q', speed: 145}
+};
+
+var sections = [
+  {name: 'Pilot', items: [
+    {id: 'p1', label: '<100 hrs total', points: 5},
+    {id: 'p2', label: '<50 hrs in type', points: 5},
+    {id: 'p3', label: '<15 hrs/90 days', points: 4},
+    {id: 'p4', label: '<8 hrs sleep', points: 4},
+    {id: 'p5', label: 'Stress/pressure', points: 3}
+  ]},
+  {name: 'Aircraft', items: [
+    {id: 'a1', label: 'Deferred mx', points: 5},
+    {id: 'a2', label: 'New to pilot', points: 4},
+    {id: 'a3', label: 'Marginal fuel', points: 5},
+    {id: 'a4', label: 'Avionics issues', points: 3}
+  ]},
+  {name: 'Environment', items: [
+    {id: 'e1', label: 'Low ceiling', points: 4},
+    {id: 'e2', label: 'Low visibility', points: 4},
+    {id: 'e3', label: 'Strong wind >15kt', points: 3},
+    {id: 'e4', label: 'Thunderstorms', points: 40},
+    {id: 'e5', label: 'Icing', points: 5},
+    {id: 'e6', label: 'Mountain/terrain', points: 3}
+  ]},
+  {name: 'Route', items: [
+    {id: 'r1', label: 'Unfamiliar', points: 3},
+    {id: 'r2', label: 'Remote/water', points: 3},
+    {id: 'r3', label: 'Class B/C', points: 2}
+  ]},
+  {name: 'Operations', items: [
+    {id: 'o1', label: 'Multiple legs', points: 0, type: 'select', options: [0, 1, 2]}
+  ]}
+];
+
+function setFlightType(type) {
+  flightType = type;
+  document.querySelectorAll('.ft-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function addMinutes(date, mins) {
+  return new Date(date.getTime() + mins * 60000);
+}
+
+function formatTime(date) {
+  return ('0' + date.getHours()).slice(-2) + ':' + ('0' + date.getMinutes()).slice(-2);
+}
+
+function parseWeather(rawText) {
+  if (!rawText) return {};
+  var txt = rawText.toUpperCase();
+  var result = {};
+  
+  var cMatch = txt.match(/(BKN|OVC)(\d{3})/);
+  if (cMatch) result.ceiling = parseInt(cMatch[2]) * 100;
+  
+  var vMatch = txt.match(/(\d+(?:\.\d+)?)SM/);
+  if (vMatch) result.visibility = parseFloat(vMatch[1]);
+  
+  var wMatch = txt.match(/(\d{3})(\d{2})(?:G(\d{2}))?KT/);
+  if (wMatch) {
+    result.windSpeed = parseInt(wMatch[2]);
+    if (wMatch[3]) result.windGust = parseInt(wMatch[3]);
+  }
+  
+  result.thunderstorm = txt.includes('TS') || txt.includes('CB') || txt.includes('LTG') || txt.includes('TSRA') || txt.includes('TSGR');
+  
+  return result;
+}
+
+function fetchWeather() {
+  var depDate = document.getElementById('dep-date').value;
+  var depTime = document.getElementById('dep-time').value;
+  var aircraftId = document.getElementById('aircraft').value;
+  var plan = document.getElementById('flight-plan').value.toUpperCase().trim();
+  
+  if (!depDate || !depTime || !aircraftId || !plan) {
+    alert('Fill in all fields');
+    return;
+  }
+  
+  var aptCodes = plan.match(/\b[A-Z][A-Z0-9]{3}\b/g);
+  if (!aptCodes || aptCodes.length < 2) {
+    alert('Enter 2+ airport codes');
+    return;
+  }
+  
+  var depDateTime = new Date(depDate + 'T' + depTime);
+  var ac = aircraft[aircraftId];
+  
+  document.getElementById('weather-section').style.display = 'block';
+  document.getElementById('weather-content').innerHTML = '<p>Fetching ' + aptCodes.length + ' airports...</p>';
+  
+  var apiKey = 'MjCd-WBcfvZFheZTrng8_sFjwEg6mp9936wSYLPMgq8';
+  
+  var promises = aptCodes.map(apt => {
+    var meteorUrl = 'https://avwx.rest/api/metar/' + apt + '?token=' + apiKey + '&format=json';
+    var tafUrl = 'https://avwx.rest/api/taf/' + apt + '?token=' + apiKey + '&format=json';
+    
+    return Promise.all([
+      fetch(meteorUrl).then(r => r.json()).catch(e => null),
+      fetch(tafUrl).then(r => r.json()).catch(e => null)
+    ]).then(([metar, taf]) => ({apt, metar, taf}));
+  });
+  
+  Promise.all(promises).then(results => {
+    var html = '<strong>' + aptCodes.join(' → ') + '</strong> (' + ac.name + ')<hr>';
+    var cumMin = 0;
+    var avgLegMinutes = Math.round((600 / ac.speed) * 60); // 600nm avg leg at aircraft speed
+    
+    // Origin (current time, use METAR)
+    var originRes = results[0];
+    var originData = originRes.metar && originRes.metar.raw ? originRes.metar : null;
+    if (originData) {
+      html += '<div class="leg-box"><strong>Origin: ' + originRes.apt + '</strong><br>';
+      html += '<span class="leg-meta">Depart: ' + formatTime(depDateTime) + '</span><br>';
+      html += '<span class="data-type metar">METAR</span><br>';
+      html += '<span class="leg-metar">' + originData.raw + '</span></div>';
+      var parsed = parseWeather(originData.raw);
+      if (parsed.thunderstorm) state['e4'] = true;
+      if (parsed.ceiling && ((flightType === 'vfr' && parsed.ceiling < 3000) || (flightType === 'ifr' && parsed.ceiling < 1000))) state['e1'] = true;
+      if (parsed.visibility && ((flightType === 'vfr' && parsed.visibility < 5) || (flightType === 'ifr' && parsed.visibility < 3))) state['e2'] = true;
+      if (parsed.windSpeed && parsed.windSpeed > 15) state['e3'] = true;
+    } else {
+      html += '<div class="leg-box"><strong>Origin: ' + originRes.apt + '</strong><br>';
+      html += '<span class="data-type error">NO DATA</span></div>';
+    }
+    
+    // Legs
+    for (var i = 0; i < aptCodes.length - 1; i++) {
+      var from = aptCodes[i];
+      var to = aptCodes[i + 1];
+      
+      cumMin += avgLegMinutes;
+      var arrTime = addMinutes(depDateTime, cumMin);
+      var now = new Date();
+      var minsFromNow = (arrTime - now) / 60000;
+      var useMetar = minsFromNow <= 60;
+      
+      var legRes = results[i + 1];
+      var weatherData = useMetar ? legRes.metar : legRes.taf;
+      var dataTypeLabel = useMetar ? 'METAR' : 'TAF';
+      
+      var legRisk = false;
+      var riskNotes = [];
+      
+      if (weatherData && weatherData.raw) {
+        var parsed = parseWeather(weatherData.raw);
+        
+        if (parsed.ceiling && ((flightType === 'vfr' && parsed.ceiling < 3000) || (flightType === 'ifr' && parsed.ceiling < 1000))) {
+          state['e1'] = true;
+          legRisk = true;
+          riskNotes.push('Ceiling ' + parsed.ceiling + 'ft');
+        }
+        
+        if (parsed.visibility && ((flightType === 'vfr' && parsed.visibility < 5) || (flightType === 'ifr' && parsed.visibility < 3))) {
+          state['e2'] = true;
+          legRisk = true;
+          riskNotes.push('Vis ' + parsed.visibility + 'SM');
+        }
+        
+        if (parsed.windSpeed && parsed.windSpeed > 15) {
+          state['e3'] = true;
+          legRisk = true;
+          riskNotes.push('Wind ' + parsed.windSpeed + 'kt');
+        }
+        
+        if (parsed.thunderstorm) {
+          state['e4'] = true;
+          legRisk = true;
+          riskNotes.push('TS');
+        }
+      }
+      
+      var flightHours = Math.floor(avgLegMinutes / 60);
+      var flightMins = avgLegMinutes % 60;
+      
+      html += '<div class="leg-box ' + (legRisk ? 'risk' : '') + '">';
+      html += '<strong>Leg ' + (i+1) + ': ' + from + ' → ' + to + '</strong><br>';
+      html += '<span class="leg-meta">' + flightHours + 'h ' + flightMins + 'm flight | Arrive: ' + formatTime(arrTime) + '</span><br>';
+      html += '<span class="data-type ' + (useMetar ? 'metar' : 'taf') + '">' + dataTypeLabel + ' (ETA ' + (useMetar ? 'within 1h' : '1h+') + ')</span>';
+      
+      if (legRisk && riskNotes.length > 0) {
+        html += '<div class="leg-risk">⚠️ ' + riskNotes.join(' | ') + '</div>';
+      }
+      
+      if (weatherData && weatherData.raw) {
+        html += '<span class="leg-metar">' + weatherData.raw + '</span>';
+      } else {
+        html += '<span class="leg-metar">❌ No data for ' + to + '</span>';
+      }
+      
+      html += '</div>';
+      
+      cumMin += 45; // fuel stop
+    }
+    
+    html += '<p style="margin-top:12px; padding-top:12px; border-top:1px solid var(--border); font-size:0.75rem; color:var(--text3);">✓ Weather parsed and applied to risk assessment</p>';
+    
+    document.getElementById('weather-content').innerHTML = html;
+    render();
+    recalc();
+  });
+}
+
+function render() {
+  var html = '';
+  sections.forEach(sec => {
+    var score = 0;
+    sec.items.forEach(item => {
+      if (item.type === 'select') {
+        score += parseInt(state[item.id] || 0);
+      } else if (state[item.id]) {
+        score += item.points;
+      }
+    });
+    
+    html += '<div class="section"><div class="sec-header" onclick="this.nextElementSibling.classList.toggle(\'open\')">';
+    html += '<span class="sec-title">' + sec.name + '</span><span class="sec-pill">' + score + ' pts</span></div>';
+    html += '<div class="sec-content">';
+    
+    sec.items.forEach(item => {
+      html += '<div class="item">';
+      if (item.type === 'select') {
+        html += '<label>' + item.label + '</label><select onchange="state[\'' + item.id + '\'] = this.value; recalc();">';
+        item.options.forEach(opt => html += '<option value="' + opt + '"' + (state[item.id] == opt ? ' selected' : '') + '>' + opt + '</option>');
+        html += '</select>';
+      } else {
+        html += '<label><input type="checkbox" onchange="state[\'' + item.id + '\'] = this.checked; render(); recalc();"' + (state[item.id] ? ' checked' : '') + '> ' + item.label + ' (+' + item.points + ')</label>';
+      }
+      html += '</div>';
+    });
+    
+    html += '</div></div>';
+  });
+  document.getElementById('sections').innerHTML = html;
+}
+
+function recalc() {
+  var score = 0;
+  sections.forEach(sec => {
+    sec.items.forEach(item => {
+      if (item.type === 'select') {
+        score += parseInt(state[item.id] || 0);
+      } else if (state[item.id]) {
+        score += item.points;
+      }
+    });
+  });
+  
+  document.getElementById('total-score').textContent = score;
+  
+  var level, status, color;
+  if (score < 20) {
+    level = 'LOW';
+    status = 'GO';
+    color = 'green';
+  } else if (score < 40) {
+    level = 'MEDIUM';
+    status = 'CAUTION';
+    color = 'yellow';
+  } else {
+    level = 'HIGH';
+    status = 'NO-GO';
+    color = 'red';
+  }
+  
+  document.getElementById('risk-level').textContent = level;
+  document.getElementById('status').textContent = status;
+  
+  var banner = document.getElementById('risk-banner');
+  banner.className = 'risk-banner ' + color;
+  banner.innerHTML = '<span class="risk-level ' + color + '">' + level + ' RISK (' + score + ' pts) - ' + status + '</span>';
+}
+
+function resetAll() {
+  state = {};
+  render();
+  recalc();
+}
+
+render();
+recalc();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+}
+</script>
+
+</body>
+</html>
